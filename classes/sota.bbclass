@@ -36,6 +36,8 @@ GARAGE_TARGET_NAME ?= "${OSTREE_BRANCHNAME}"
 GARAGE_TARGET_VERSION ?= ""
 GARAGE_TARGET_URL ?= "https://example.com/"
 
+SOTA_HARDWARE_ID ?= "${MACHINE}"
+
 SOTA_MACHINE ??="none"
 SOTA_MACHINE_rpi ?= "raspberrypi"
 SOTA_MACHINE_porter ?= "porter"

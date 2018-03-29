@@ -4,6 +4,7 @@ Description=Aktualizr SOTA Client (UPTANE Secondary)
 [Service]
 RestartSec=10
 Restart=always
+EnvironmentFile=/usr/lib/sota/sota.env
 EnvironmentFile=-/etc/sota/sota.env
-ExecStart=/usr/bin/aktualizr-secondary --config /usr/lib/sota/sota_secondary.toml
+ExecStart=/usr/bin/aktualizr-secondary $AKTUALIZR_CMDLINE_PARAMETERS
 
