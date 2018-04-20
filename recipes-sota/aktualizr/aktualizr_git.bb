@@ -33,6 +33,8 @@ SYSTEMD_SERVICE_${PN} = "aktualizr.service"
 
 BBCLASSEXTEND =+ "native"
 
+# hardcode garage-sign version for demo
+GARAGE_SIGN_VERSION ?= "cli-0.3.0-20-g9dd6d07"
 require garage-sign-version.inc
 
 EXTRA_OECMAKE = "-DWARNING_AS_ERROR=OFF -DCMAKE_BUILD_TYPE=Release -DAKTUALIZR_VERSION=${PV} "
