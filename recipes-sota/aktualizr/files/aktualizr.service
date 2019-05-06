@@ -1,14 +1,10 @@
 [Unit]
 Description=Aktualizr SOTA Client
-Wants=network-online.target
-After=network.target network-online.target
-Requires=network-online.target
+After=network.target
 
 [Service]
 RestartSec=10
 Restart=always
-EnvironmentFile=/usr/lib/sota/sota.env
-EnvironmentFile=-/etc/sota/sota.env
 ExecStart=/usr/bin/aktualizr $AKTUALIZR_CMDLINE_PARAMETERS
 
 [Install]

@@ -63,35 +63,6 @@ class GeneralTests(OESelftestTestCase):
         self.assertEqual(result.status, 0,
                          "Java not found. Do you have a JDK installed on your host machine?")
 
-    def test_add_package(self):
-        deploydir = get_bb_var('DEPLOY_DIR_IMAGE')
-        imagename = get_bb_var('IMAGE_LINK_NAME', 'core-image-minimal')
-        image_path = deploydir + '/' + imagename + '.otaimg'
-        logger = logging.getLogger("selftest")
-
-        logger.info('Running bitbake with man in the image package list')
-        self.append_config('IMAGE_INSTALL_append = " man "')
-        bitbake('-c cleanall man-db')
-        bitbake('core-image-minimal')
-        result = runCmd('oe-pkgdata-util find-path /usr/bin/man')
-        self.assertEqual(result.output, 'man-db: /usr/bin/man')
-        path1 = os.path.realpath(image_path)
-        size1 = os.path.getsize(path1)
-        logger.info('First image %s has size %i' % (path1, size1))
-
-        logger.info('Running bitbake without man in the image package list')
-        self.append_config('IMAGE_INSTALL_remove = " man "')
-        bitbake('-c cleanall man-db')
-        bitbake('core-image-minimal')
-        result = runCmd('oe-pkgdata-util find-path /usr/bin/man', ignore_status=True)
-        self.assertEqual(result.status, 1, "Status different than 1. output: %s" % result.output)
-        self.assertEqual(result.output, 'ERROR: Unable to find any package producing path /usr/bin/man')
-        path2 = os.path.realpath(image_path)
-        size2 = os.path.getsize(path2)
-        logger.info('Second image %s has size %i', path2, size2)
-        self.assertNotEqual(path1, path2, "Image paths are identical; image was not rebuilt.")
-        self.assertNotEqual(size1, size2, "Image sizes are identical; image was not rebuilt.")
-
 
 class AktualizrToolsTests(OESelftestTestCase):
 
@@ -102,33 +73,30 @@ class AktualizrToolsTests(OESelftestTestCase):
         logger.info('Running bitbake to build aktualizr-native tools')
         bitbake('aktualizr-native')
 
-    def test_implicit_writer_help(self):
-        akt_native_run(self, 'aktualizr_implicit_writer --help')
-
     def test_cert_provider_help(self):
-        akt_native_run(self, 'aktualizr_cert_provider --help')
+        akt_native_run(self, 'aktualizr-cert-provider --help')
 
     def test_cert_provider_local_output(self):
         logger = logging.getLogger("selftest")
-        logger.info('Running bitbake to build aktualizr-implicit-prov')
-        bitbake('aktualizr-implicit-prov')
+        logger.info('Running bitbake to build aktualizr-ca-implicit-prov')
+        bitbake('aktualizr-ca-implicit-prov')
         bb_vars = get_bb_vars(['SOTA_PACKED_CREDENTIALS', 'T'], 'aktualizr-native')
         creds = bb_vars['SOTA_PACKED_CREDENTIALS']
         temp_dir = bb_vars['T']
-        bb_vars_prov = get_bb_vars(['STAGING_DIR_HOST', 'libdir'], 'aktualizr-implicit-prov')
-        config = bb_vars_prov['STAGING_DIR_HOST'] + bb_vars_prov['libdir'] + '/sota/sota_implicit_prov.toml'
+        bb_vars_prov = get_bb_vars(['STAGING_DIR_HOST', 'libdir'], 'aktualizr-ca-implicit-prov')
+        config = bb_vars_prov['STAGING_DIR_HOST'] + bb_vars_prov['libdir'] + '/sota/sota_implicit_prov_ca.toml'
 
-        akt_native_run(self, 'aktualizr_cert_provider -c {creds} -r -l {temp} -g {config}'
+        akt_native_run(self, 'aktualizr-cert-provider -c {creds} -r -l {temp} -g {config}'
                        .format(creds=creds, temp=temp_dir, config=config))
 
         # Might be nice if these names weren't hardcoded.
-        cert_path = temp_dir + '/client.pem'
+        cert_path = temp_dir + '/var/sota/import/client.pem'
         self.assertTrue(os.path.isfile(cert_path), "Client certificate not found at %s." % cert_path)
         self.assertTrue(os.path.getsize(cert_path) > 0, "Client certificate at %s is empty." % cert_path)
-        pkey_path = temp_dir + '/pkey.pem'
+        pkey_path = temp_dir + '/var/sota/import/pkey.pem'
         self.assertTrue(os.path.isfile(pkey_path), "Private key not found at %s." % pkey_path)
         self.assertTrue(os.path.getsize(pkey_path) > 0, "Private key at %s is empty." % pkey_path)
-        ca_path = temp_dir + '/root.crt'
+        ca_path = temp_dir + '/var/sota/import/root.crt'
         self.assertTrue(os.path.isfile(ca_path), "Client certificate not found at %s." % ca_path)
         self.assertTrue(os.path.getsize(ca_path) > 0, "Client certificate at %s is empty." % ca_path)
 
@@ -150,8 +118,6 @@ class AutoProvTests(OESelftestTestCase):
             self.meta_qemu = None
         self.append_config('MACHINE = "qemux86-64"')
         self.append_config('SOTA_CLIENT_PROV = " aktualizr-auto-prov "')
-        # Test aktualizr-example-interface package.
-        self.append_config('IMAGE_INSTALL_append = " aktualizr-examples aktualizr-example-interface "')
         self.qemu, self.s = qemu_launch(machine='qemux86-64')
 
     def tearDownLocal(self):
@@ -185,12 +151,6 @@ class AutoProvTests(OESelftestTestCase):
         self.assertTrue(ran_ok, 'aktualizr-info failed: ' + stderr.decode() + stdout.decode())
 
         verifyProvisioned(self, machine)
-        # Test aktualizr-example-interface package.
-        stdout, stderr, retcode = self.qemu_command('aktualizr-info')
-        self.assertIn(b'hardware ID: example1', stdout,
-                      'Legacy secondary initialization failed: ' + stderr.decode() + stdout.decode())
-        self.assertIn(b'hardware ID: example2', stdout,
-                      'Legacy secondary initialization failed: ' + stderr.decode() + stdout.decode())
 
 
 class ManualControlTests(OESelftestTestCase):
@@ -221,20 +181,21 @@ class ManualControlTests(OESelftestTestCase):
     def qemu_command(self, command):
         return qemu_send_command(self.qemu.ssh_port, command)
 
-    def test_manual_running_mode_once(self):
+    def test_manual_run_mode_once(self):
         """
         Disable the systemd service then run aktualizr manually
         """
         sleep(20)
-        stdout, stderr, retcode = self.qemu_command('aktualizr-info --allow-migrate')
-        self.assertIn(b'Fetched metadata: no', stdout,
+        stdout, stderr, retcode = self.qemu_command('aktualizr-info')
+        self.assertIn(b'Can\'t open database', stdout,
                       'Aktualizr should not have run yet' + stderr.decode() + stdout.decode())
 
-        stdout, stderr, retcode = self.qemu_command('aktualizr --running-mode=once')
+        stdout, stderr, retcode = self.qemu_command('aktualizr once')
 
         stdout, stderr, retcode = self.qemu_command('aktualizr-info')
         self.assertIn(b'Fetched metadata: yes', stdout,
                       'Aktualizr should have run' + stderr.decode() + stdout.decode())
+
 
 class RpiTests(OESelftestTestCase):
 
@@ -295,9 +256,9 @@ class RpiTests(OESelftestTestCase):
 
     def test_rpi(self):
         logger = logging.getLogger("selftest")
-        logger.info('Running bitbake to build rpi-basic-image')
+        logger.info('Running bitbake to build core-image-minimal')
         self.append_config('SOTA_CLIENT_PROV = "aktualizr-auto-prov"')
-        bitbake('rpi-basic-image')
+        bitbake('core-image-minimal')
         credentials = get_bb_var('SOTA_PACKED_CREDENTIALS')
         # Skip the test if the variable SOTA_PACKED_CREDENTIALS is not set.
         if credentials is None:
@@ -305,7 +266,7 @@ class RpiTests(OESelftestTestCase):
         # Check if the file exists.
         self.assertTrue(os.path.isfile(credentials), "File %s does not exist" % credentials)
         deploydir = get_bb_var('DEPLOY_DIR_IMAGE')
-        imagename = get_bb_var('IMAGE_LINK_NAME', 'rpi-basic-image')
+        imagename = get_bb_var('IMAGE_LINK_NAME', 'core-image-minimal')
         # Check if the credentials are included in the output image.
         result = runCmd('tar -jtvf %s/%s.tar.bz2 | grep sota_provisioning_credentials.zip' %
                         (deploydir, imagename), ignore_status=True)
@@ -390,8 +351,9 @@ class ImplProvTests(OESelftestTestCase):
         else:
             self.meta_qemu = None
         self.append_config('MACHINE = "qemux86-64"')
-        self.append_config('SOTA_CLIENT_PROV = " aktualizr-implicit-prov "')
-        runCmd('bitbake -c cleanall aktualizr aktualizr-implicit-prov')
+        self.append_config('SOTA_CLIENT_PROV = " aktualizr-ca-implicit-prov "')
+        self.append_config('SOTA_DEPLOY_CREDENTIALS = "0"')
+        runCmd('bitbake -c cleanall aktualizr aktualizr-ca-implicit-prov')
         self.qemu, self.s = qemu_launch(machine='qemux86-64')
 
     def tearDownLocal(self):
@@ -433,13 +395,14 @@ class ImplProvTests(OESelftestTestCase):
         self.assertIn(b'Fetched metadata: no', stdout,
                       'Device already provisioned!? ' + stderr.decode() + stdout.decode())
 
-        # Run cert_provider.
+        # Run aktualizr-cert-provider.
         bb_vars = get_bb_vars(['SOTA_PACKED_CREDENTIALS'], 'aktualizr-native')
         creds = bb_vars['SOTA_PACKED_CREDENTIALS']
-        bb_vars_prov = get_bb_vars(['STAGING_DIR_HOST', 'libdir'], 'aktualizr-implicit-prov')
-        config = bb_vars_prov['STAGING_DIR_HOST'] + bb_vars_prov['libdir'] + '/sota/sota_implicit_prov.toml'
+        bb_vars_prov = get_bb_vars(['STAGING_DIR_HOST', 'libdir'], 'aktualizr-ca-implicit-prov')
+        config = bb_vars_prov['STAGING_DIR_HOST'] + bb_vars_prov['libdir'] + '/sota/sota_implicit_prov_ca.toml'
 
-        akt_native_run(self, 'aktualizr_cert_provider -c {creds} -t root@localhost -p {port} -s -g {config}'
+        print('Provisining at root@localhost:%d' % self.qemu.ssh_port)
+        akt_native_run(self, 'aktualizr-cert-provider -c {creds} -t root@localhost -p {port} -s -u -r -g {config}'
                        .format(creds=creds, port=self.qemu.ssh_port, config=config))
 
         verifyProvisioned(self, machine)
@@ -462,7 +425,9 @@ class HsmTests(OESelftestTestCase):
             self.meta_qemu = None
         self.append_config('MACHINE = "qemux86-64"')
         self.append_config('SOTA_CLIENT_PROV = "aktualizr-hsm-prov"')
+        self.append_config('SOTA_DEPLOY_CREDENTIALS = "0"')
         self.append_config('SOTA_CLIENT_FEATURES = "hsm"')
+        self.append_config('IMAGE_INSTALL_append = " softhsm-testtoken"')
         runCmd('bitbake -c cleanall aktualizr aktualizr-hsm-prov')
         self.qemu, self.s = qemu_launch(machine='qemux86-64')
 
@@ -515,13 +480,13 @@ class HsmTests(OESelftestTestCase):
         self.assertNotEqual(retcode, 0, 'softhsm2-tool succeeded before initialization: ' +
                         stdout.decode() + stderr.decode())
 
-        # Run cert_provider.
+        # Run aktualizr-cert-provider.
         bb_vars = get_bb_vars(['SOTA_PACKED_CREDENTIALS'], 'aktualizr-native')
         creds = bb_vars['SOTA_PACKED_CREDENTIALS']
         bb_vars_prov = get_bb_vars(['STAGING_DIR_HOST', 'libdir'], 'aktualizr-hsm-prov')
         config = bb_vars_prov['STAGING_DIR_HOST'] + bb_vars_prov['libdir'] + '/sota/sota_hsm_prov.toml'
 
-        akt_native_run(self, 'aktualizr_cert_provider -c {creds} -t root@localhost -p {port} -r -s -g {config}'
+        akt_native_run(self, 'aktualizr-cert-provider -c {creds} -t root@localhost -p {port} -r -s -u -g {config}'
                        .format(creds=creds, port=self.qemu.ssh_port, config=config))
 
         # Verify that HSM is able to initialize.
@@ -557,6 +522,7 @@ class HsmTests(OESelftestTestCase):
                          p11_err.decode() + p11_out.decode() + hsm_err.decode() + hsm_out.decode())
 
         verifyProvisioned(self, machine)
+
 
 class SecondaryTests(OESelftestTestCase):
     @classmethod
@@ -660,7 +626,13 @@ def qemu_launch(efi=False, machine=None, imagename=None):
     args.dir = 'tmp/deploy/images'
     args.efi = efi
     args.machine = machine
-    args.kvm = None  # Autodetect
+    qemu_use_kvm = get_bb_var("QEMU_USE_KVM")
+    if qemu_use_kvm and \
+       (qemu_use_kvm == 'True' and 'x86' in machine or \
+        get_bb_var('MACHINE') in qemu_use_kvm.split()):
+        args.kvm = True
+    else:
+        args.kvm = None  # Autodetect
     args.no_gui = True
     args.gdb = False
     args.pcap = None

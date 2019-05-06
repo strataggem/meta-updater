@@ -6,7 +6,7 @@ This layer enables over-the-air updates (OTA) with https://github.com/ostreedev/
 
 https://github.com/ostreedev/ostree[OSTree] is a tool for atomic full file system upgrades with rollback capability. OSTree has several advantages over traditional dual-bank systems, but the most important one is that it minimizes network bandwidth and data storage footprint by sharing files with the same contents across file system deployments.
 
-https://github.com/advancedtelematic/aktualizr[Aktualizr] (and https://github.com/advancedtelematic/rvi_sota_client[RVI SOTA client]) add authentication and provisioning capabilities to OTA and are integrated with OSTree. You can connect with the open-source https://github.com/advancedtelematic/rvi_sota_server[RVI SOTA server] or sign up for a free account at https://app.atsgarage.com[ATS Garage] to get started.
+https://github.com/advancedtelematic/aktualizr[Aktualizr] (and https://github.com/advancedtelematic/rvi_sota_client[RVI SOTA client]) add authentication and provisioning capabilities to OTA and are integrated with OSTree. You can connect with these open-source applications or sign up for a free account at https://connect.ota.here.com/[HERE OTA Connect] to get started.
 
 [discrete]
 == Table of Contents
@@ -17,7 +17,7 @@ toc::[]
 
 === Quickstart
 
-If you don't already have a Yocto project that you want to add OTA to, you can use the https://docs.atsgarage.com/quickstarts/raspberry-pi.html[ATS Garage Quickstart] project to rapidly get up and running on a Raspberry Pi. It takes a standard https://www.yoctoproject.org/tools-resources/projects/poky[poky] distribution, and adds OTA and OSTree capabilities.
+If you don't already have a Yocto project that you want to add OTA to, you can use the https://docs.atsgarage.com/quickstarts/raspberry-pi.html[HERE OTA Connect Quickstart] project to rapidly get up and running on a Raspberry Pi. It takes a standard https://www.yoctoproject.org/tools-resources/projects/poky[poky] distribution, and adds OTA and OSTree capabilities.
 
 === Adding meta-updater capabilities to your build
 
@@ -79,11 +79,15 @@ Although we have used U-Boot so far, other boot loaders can be configured work w
 * `OSTREE_REPO` - path to your OSTree repository. Defaults to `$\{DEPLOY_DIR_IMAGE}/ostree_repo`
 * `OSTREE_OSNAME` - OS deployment name on your target device. For more information about deployments and osnames see the https://ostree.readthedocs.io/en/latest/manual/deployment/[OSTree documentation]. Defaults to "poky".
 * `OSTREE_INITRAMFS_IMAGE` - initramfs/initrd image that is used as a proxy while booting into OSTree deployment. Do not change this setting unless you are sure that your initramfs can serve as such a proxy.
+* `OSTREE_COMMIT_BODY` - Message attached to OSTree commit. Empty by default.
+* `OSTREE_COMMIT_SUBJECT` - Commit subject used by OSTree. Defaults to `Commit-id: ${IMAGE_NAME}`
+* `OSTREE_UPDATE_SUMMARY` - Set this to '1' to update summary of OSTree repository on each commit. '0' by default.
 * `SOTA_PACKED_CREDENTIALS` - when set, your ostree commit will be pushed to a remote repo as a bitbake step. This should be the path to a zipped credentials file in https://github.com/advancedtelematic/aktualizr/blob/master/docs/credentials.adoc[the format accepted by garage-push].
-* `SOTA_CLIENT_PROV` - which provisioning method to use. Valid options are https://github.com/advancedtelematic/aktualizr/blob/master/docs/automatic-provisioning.adoc[`aktualizr-auto-prov`], https://github.com/advancedtelematic/aktualizr/blob/master/docs/implicit-provisioning.adoc[`aktualizr-implicit-prov`], and https://github.com/advancedtelematic/aktualizr/blob/master/docs/hsm-provisioning.adoc[`aktualizr-hsm-prov`]. The default is `aktualizr-auto-prov`. This can also be set to an empty string to avoid using a provisioning recipe.
+* `SOTA_DEPLOY_CREDENTIALS` - when set to '1' (default value), deploys credentials to the built image. Override it in `local.conf` to built a generic image that can be provisioned manually after the build.
+* `SOTA_CLIENT_PROV` - which provisioning method to use. Valid options are https://github.com/advancedtelematic/aktualizr/blob/master/docs/automatic-provisioning.adoc[`aktualizr-auto-prov`], https://github.com/advancedtelematic/aktualizr/blob/master/docs/implicit-provisioning.adoc[`aktualizr-ca-implicit-prov`], and https://github.com/advancedtelematic/aktualizr/blob/master/docs/hsm-provisioning.adoc[`aktualizr-hsm-prov`]. The default is `aktualizr-auto-prov`. This can also be set to an empty string to avoid using a provisioning recipe.
 * `SOTA_CLIENT_FEATURES` - extensions to aktualizr. The only valid options are `hsm` (to build with HSM support) and `secondary-network` (to set up a simulated 'in-vehicle' network with support for a primary node with a DHCP server and a secondary node with a DHCP client).
-* `SOTA_SECONDARY_ECUS` - a list of paths separated by spaces of JSON configuration files for virtual secondaries on the host. These will be installed into `/var/sota/ecus` on the device.
-* `SOTA_VIRTUAL_SECONDARIES` - a list of paths separated by spaces of JSON configuration files for virtual secondaries installed on the device. If `SOTA_SECONDARY_ECUS` is used to install them, then you can expect them to be installed in `/var/sota/ecus`.
+* `SOTA_SECONDARY_CONFIG_DIR` - a directory containing JSON configuration files for virtual secondaries on the host. These will be installed into `/etc/sota/ecus` on the device and automatically provided to aktualizr.
+* `SOTA_HARDWARE_ID` - a custom hardware ID that will be written to the aktualizr config. Defaults to MACHINE if not set.
 
 == Usage
 
@@ -127,7 +131,7 @@ ostree admin deploy --os=agl agl-snapshot:agl-ota
 
 === garage-push
 
-The https://github.com/advancedtelematic/aktualizr[aktualizr repo] contains a tool, garage-push, which lets you push the changes in OSTree repository generated by bitbake process. It communicates with an http server capable of querying files with HEAD requests and uploading them with POST requests. In particular, this can be used with http://www.atsgarage.com/[ATS Garage]. garage-push is used as follows:
+The https://github.com/advancedtelematic/aktualizr[aktualizr repo] contains a tool, garage-push, which lets you push the changes in OSTree repository generated by bitbake process. It communicates with an http server capable of querying files with HEAD requests and uploading them with POST requests. In particular, this can be used with https://connect.ota.here.com/[HERE OTA Connect]. garage-push is used as follows:
 
 ....
 garage-push --repo=/path/to/ostree-repo --ref=mybranch --credentials=/path/to/credentials.zip
@@ -143,8 +147,8 @@ First, you can set `SOTA_CLIENT_PROV` to control which provisioning recipe is us
 
 Second, you can write recipes to install additional config files with customized options. A few recipes already exist to address common needs and provide an example:
 
-* link:recipes-sota/config/aktualizr-example-interface.bb[aktualizr-example-interface.bb] will configure aktualizr to connect to an example interface for a legacy flasher. This is intended to be used in conjunction with the `aktualizr-examples` package. See https://github.com/advancedtelematic/aktualizr/blob/master/docs/legacysecondary.adoc[legacysecondary.adoc] in the aktualizr repo for more information.
-* link:recipes-sota/config/aktualizr-disable-send-ip.bb[aktualizr-disable-send-ip.bb] disables the reporting of networking information to the server. This is enabled by default and supported by https://app.atsgarage.com[ATS Garage]. However, if you are using a different server that does not support this feature, you may want to disable it in aktualizr.
+* link:recipes-sota/config/aktualizr-auto-reboot.bb[aktualizr-auto-reboot.bb] configures aktualizr to automatically reboot after new updates are installed in order to apply the updates immediately. This is only relevant for package managers (such as OSTree) that require a reboot to complete the installation process. If this is not enabled, you will need to reboot the system through other means.
+* link:recipes-sota/config/aktualizr-disable-send-ip.bb[aktualizr-disable-send-ip.bb] disables the reporting of networking information to the server. This is enabled by default and supported by https://connect.ota.here.com/[HERE OTA Connect]. However, if you are using a different server that does not support this feature, you may want to disable it in aktualizr.
 * link:recipes-sota/config/aktualizr-log-debug.bb[aktualizr-log-debug.bb] sets the log level of aktualizr to 0 (trace). The default is 2 (info). This recipe is intended for development and debugging purposes.
 
 To use these recipes, you will need to add them to your image with a line such as `IMAGE_INSTALL_append = " aktualizr-log-debug "` in your `local.conf`.
@@ -166,9 +170,19 @@ There are a few settings that can be controlled in `local.conf` to simplify the 
 | `TOOLCHAIN_HOST_TASK_append = " nativesdk-cmake "` | Use with `bitbake -c populate_sdk core-image-minimal` to build an SDK. See the https://github.com/advancedtelematic/aktualizr#developing-against-an-openembedded-system[aktualizr repo] for more information.
 |======================
 
+=== Overriding target version
+*Warning: overriding target version is a dangerous operation, make sure you understand this section completely before doing it.*
+
+Every time you build an image with `SOTA_PACKED_CREDENTIALS` set, a new entry in your Uptane metadata is created and you can see it in the OTA Garage UI if you're using one. Normally this version will be equal to OSTree hash of your root file system. If you want it to be different though you can override is using one of two methods:
+
+1. Set `GARAGE_TARGET_VERSION` variable in your `local.conf`.
+2. Write a recipe or a bbclass to write the desired version to `${STAGING_DATADIR_NATIVE}/target_version`. An example of such bbclass can be found in `classes/target_version_example.bbclass`.
+
+Please note that [target name, target version] pairs are expected to be unique in the system. If you build a new target with the same target version as a previously built one, the old package will be overwritten on the update server. It can have unpredictable effect on devices that have this version installed, and it is not guaranteed that information will be reported correctly for such devices or that you will be able to update them (we're doing our best though). The easiest way to avoid problems is to make sure that your overriding version is as unique as an OSTree commit hash.
+
 == QA with oe-selftest
 
-This layer relies on the test framework oe-selftest for quality assurance. Follow the steps below to run the tests:
+This layer relies on the test framework oe-selftest for quality assurance. Currently, you will need to run this in a build directory with `MACHINE` set to `qemux86-64`. Follow the steps below to run the tests:
 
 1. Append the line below to `conf/local.conf` to disable the warning about supported operating systems:
 +
@@ -197,3 +211,18 @@ oe-selftest --run-tests updater
 ```
 
 For more information about oe-selftest, including details about how to run individual test modules or classes, please refer to the https://wiki.yoctoproject.org/wiki/Oe-selftest[Yocto Project wiki].
+
+== Manual provisoning
+
+As described in <<sota-related-variables-in-localconf,SOTA-related variables in local.conf>> section you can set `SOTA_DEPLOY_CREDENTIALS` to `0` to prevent deploying credentials to the built `wic` image. In this case you get a generic image that you can use e.g. on a production line to flash a series of devices. The cost of this approach is that this image is half-baked and should be provisioned before it can connect to the backend.
+
+Provisioning procedure depends on your provisioning recipe, i.e. the value of `SOTA_CLIENT_PROV` (equal to `aktualizr-auto-prov` by default):
+
+* For `aktualizr-auto-prov` put your `credentials.zip` to `/var/sota/sota_provisioning_credentials.zip` on the filesystem of a running device. If you have the filesystem of our device mounted to your build machine, prefix all paths with `/ostree/deploy/poky` as in `/ostree/deploy/poky/var/sota/sota_provisioning_credentials.zip`.
+* For `aktualizr-ca-implicit-prov`
+** put URL to the backend server (together with protocol prefix and port number) at `/var/sota/gateway.url`. If you're using HERE OTA Connect, you can find the URL in the `autoprov.url` file in your credentials archive.
+** put client certificate, private key and root CA certificate (for the *server*, not for the *device*) at `/var/sota/import/client.pem`, `/var/sota/import/pkey.pem` and `/var/sota/import/root.crt` respectively.
+* For  `aktualizr-hsm-prov`
+** put URL to the server backend (together with protocol prefix and port number) at `/var/sota/gateway.url`. If you're using HERE OTA Connect, you can find the URL in the `autoprov.url` file in your credentials archive.
+** put root CA certificate (for the *server*, not for the *device*) at `/var/sota/import/root.crt`.
+** put client certificate and private key to slots 1 and 2 of the PKCS#11-compatible device.
