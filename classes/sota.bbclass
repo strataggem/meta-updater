@@ -3,14 +3,28 @@ python __anonymous() {
         d.appendVarFlag("do_image_wic", "depends", " %s:do_image_otaimg" % d.getVar("IMAGE_BASENAME", True))
 }
 
-OVERRIDES .= "${@bb.utils.contains('DISTRO_FEATURES', 'sota', ':sota', '', d)}"
+DISTROOVERRIDES .= "${@bb.utils.contains('DISTRO_FEATURES', 'sota', ':sota', '', d)}"
 
 HOSTTOOLS_NONFATAL += "java"
 
 SOTA_CLIENT ??= "aktualizr"
-SOTA_CLIENT_PROV ??= "aktualizr-auto-prov"
+SOTA_CLIENT_PROV ??= "aktualizr-shared-prov"
 SOTA_DEPLOY_CREDENTIALS ?= "1"
 SOTA_HARDWARE_ID ??= "${MACHINE}"
+
+# Translate old provisioning recipe names into the new versions.
+python () {
+    prov = d.getVar("SOTA_CLIENT_PROV")
+    if prov == "aktualizr-auto-prov":
+        bb.warn('aktualizr-auto-prov is deprecated. Please use aktualizr-shared-prov instead.')
+        d.setVar("SOTA_CLIENT_PROV", "aktualizr-shared-prov")
+    elif prov == "aktualizr-ca-implicit-prov":
+        bb.warn('aktualizr-ca-implicit-prov is deprecated. Please use aktualizr-device-prov instead.')
+        d.setVar("SOTA_CLIENT_PROV", "aktualizr-device-prov")
+    elif prov == "aktualizr-hsm-prov":
+        bb.warn('aktualizr-hsm-prov is deprecated. Please use aktualizr-device-prov-hsm instead.')
+        d.setVar("SOTA_CLIENT_PROV", "aktualizr-device-prov-hsm")
+}
 
 IMAGE_INSTALL_append_sota = " ostree os-release ${SOTA_CLIENT} ${SOTA_CLIENT_PROV}"
 IMAGE_CLASSES += " image_types_ostree image_types_ota"
@@ -38,7 +52,7 @@ GARAGE_SIGN_REPO ?= "${DEPLOY_DIR_IMAGE}/garage_sign_repo"
 GARAGE_SIGN_KEYNAME ?= "garage-key"
 GARAGE_TARGET_NAME ?= "${OSTREE_BRANCHNAME}"
 GARAGE_TARGET_VERSION ?= ""
-GARAGE_TARGET_URL ?= "https://example.com/"
+GARAGE_TARGET_URL ?= ""
 
 SOTA_MACHINE ??="none"
 SOTA_MACHINE_rpi ?= "raspberrypi"
